@@ -1,2 +1,4 @@
 hello_cuda
 a.out
+hello_vecadd_cuda_blocks
+hello_cuda_blocks

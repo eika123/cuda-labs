@@ -4,36 +4,37 @@
 #include <stdio.h>
 #include <time.h>
 
+#include <cmath>
 #include <cstring>
 #include <ctime>
 
 #define MAX(x, y) ((x) > (y)) ? (x) : (y)
 
-
 /**
  * Compare times for vector addition on GPU and CPU.
- * None of the codes are optimized in any way, solutions are as simple as possible
+ * None of the codes are optimized in any way, solutions are as simple as
+ * possible
  */
 
 // Device code: call with one-dimensional thread block
-__global__ void VecAdd(float* A, float* B, float* C, int N) {
+__global__ void VecAdd(float *A, float *B, float *C, int N) {
         int i = threadIdx.x;
         if (i < N) C[i] = A[i] + B[i];
 }
 
-__global__ void SetVal(float* A, float value, int N) {
+__global__ void SetVal(float *A, float value, int N) {
         int i = threadIdx.x;
         A[i] = value;
 }
 
-void set_value_on_host(float* A, float value, int N) {
+void set_value_on_host(float *A, float value, int N) {
         int i;
         for (i = 0; i < N; i++) {
                 A[i] = value;
         }
 }
 
-void vec_add_host(const float* A, const float* B, float* C, int N) {
+void vec_add_host(const float *A, const float *B, float *C, int N) {
         int i;
         for (i = 0; i < N; i++) {
                 C[i] = A[i] + B[i];
@@ -53,7 +54,7 @@ void print_vector_row(float arr[], int num_of_elements) {
         printf(" ]\n");
 }
 
-void print_vector_add_rows(float* A, float* B, float* C, int N) {
+void print_vector_add_rows(float *A, float *B, float *C, int N) {
         printf("vector A:  ");
         print_vector_row(A, N);
 
@@ -64,7 +65,7 @@ void print_vector_add_rows(float* A, float* B, float* C, int N) {
         print_vector_row(C, N);
 }
 
-void print_elapsed_time_seconds(timespec* start, timespec* end) {
+void print_elapsed_time_seconds(timespec *start, timespec *end) {
         float nanosecs_in_secf = 1e9;
         int nanosecs_in_sec_int = (int)nanosecs_in_secf;
         time_t tv_sec_start = start->tv_sec;
@@ -91,29 +92,54 @@ void print_elapsed_time_seconds(timespec* start, timespec* end) {
         printf("seconds elapsed: %3.10f\n", secs_elapsed);
 }
 
-// Host code
-int main(int argc, char** argv) {
+int within_tolerance(float *A, float expected, float tol, int N, const char *msg) {
+        int j;
+        for (j = 0; j < N; j++) {
+                if (fabs(A[j] - expected) > tol) {
+
+                        if (msg) {
+                            printf("%s: ", msg);
+                        }
+                        printf(
+                            "error in cuda vector assignment, encountered "
+                            "value %f, expected value %f\n",
+                            A[j], expected);
+                        return 0;
+                }
+        }
+        return 1;
+}
+
+int main(int argc, char **argv) {
         if (argc < 2) {
-                printf("usage: %s <N>\nWhere N is the length of the vectors",
+                printf("usage: %s <N>\nWhere N is the length of the vectors. Requires 1 <= N <= 1024",
                        argv[0]);
                 exit(1);
         }
+        int N = atoi(argv[1]);
+        if (N < 1) {
+            printf("Scalar addition detected. Use your calculator\n");
+            exit(1);
+        }
+        if (N > 1024) {
+            printf("This program is not programmed properly. Cannot use N > 1024");
+            exit(1);
+        }
 
         timespec ts_cuda_start, ts_cuda_end, ts_host_start, ts_host_end;
-        int N = atoi(argv[1]);
         size_t size = N * sizeof(float);
-        float* h_A;
-        if ((h_A = (float*)calloc(N, sizeof(float))) == NULL) {
+        float *h_A;
+        if ((h_A = (float *)calloc(N, sizeof(float))) == NULL) {
                 printf("memory allocation failed\n");
                 exit(1);
         }
-        float* h_B;
-        if ((h_B = (float*)calloc(N, sizeof(float))) == NULL) {
+        float *h_B;
+        if ((h_B = (float *)calloc(N, sizeof(float))) == NULL) {
                 printf("memory allocation failed\n");
                 exit(1);
         }
-        float* h_C;
-        if ((h_C = (float*)calloc(N, sizeof(float))) == NULL) {
+        float *h_C;
+        if ((h_C = (float *)calloc(N, sizeof(float))) == NULL) {
                 printf("memory allocation failed\n");
                 exit(1);
         }
@@ -123,9 +149,9 @@ int main(int argc, char** argv) {
                 printf("getting clock startttime failed");
         }
         // device allocations
-        float* d_A;
-        float* d_B;
-        float* d_C;
+        float *d_A;
+        float *d_B;
+        float *d_C;
         cudaMalloc(&d_A, size);
         cudaMalloc(&d_B, size);
         cudaMalloc(&d_C, size);
@@ -135,22 +161,36 @@ int main(int argc, char** argv) {
 
         SetVal<<<1, N>>>(d_A, 1.0, N);
         SetVal<<<1, N>>>(d_B, 2.0, N);
-        cudaMemcpy(d_A, h_A, size, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_B, h_B, size, cudaMemcpyHostToDevice);
-
-        SetVal<<<1, N>>>(d_A, 1.0, N);
-        SetVal<<<1, N>>>(d_B, 2.0, N);
 
         VecAdd<<<1, N>>>(d_A, d_B, d_C, N);
+        cudaDeviceSynchronize();
 
         cudaMemcpy(h_A, d_A, size, cudaMemcpyDeviceToHost);
         cudaMemcpy(h_B, d_B, size, cudaMemcpyDeviceToHost);
         cudaMemcpy(h_C, d_C, size, cudaMemcpyDeviceToHost);
+
         if (clock_gettime(CLOCK_REALTIME, &ts_cuda_end) == -1) {
                 printf("getting clock end time failed");
         }
         printf("elapsed time for GPU addition:\n");
         print_elapsed_time_seconds(&ts_cuda_start, &ts_cuda_end);
+
+        cudaFree(d_A);
+        cudaFree(d_B);
+        cudaFree(d_C);
+
+        float tolerance = 1e-10;
+        int a,b,c;
+        const char *msgA = "A", *msgB="B", *msgC="C";
+        
+        a = within_tolerance(h_A, 1.0f, tolerance, N, msgA);
+        b = within_tolerance(h_B, 2.0f, tolerance, N, msgB);
+        c = within_tolerance(h_C, 3.0f, tolerance, N, msgC);
+        if (!(a && b && c)) {
+            printf("cuda operations failed\n");
+            exit(1);
+        }
+
         printf("\n =========== host addition =================== \n");
 
         // print_vector_add_rows(h_A, h_B, h_C, N);
@@ -171,4 +211,8 @@ int main(int argc, char** argv) {
         print_elapsed_time_seconds(&ts_host_start, &ts_host_end);
 
         printf("host: h_C[9* N/10] = %f\n", h_C[9 * (N / 10)]);
+
+        free(h_A);
+        free(h_B);
+        free(h_C);
 }
