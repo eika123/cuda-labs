@@ -18,7 +18,6 @@ __global__ void cuda_hello_blocks() {
             threadIdx.z);
 }
 
-
 int main(void) {
 
     dim3 grid_dims, block_dims;
@@ -34,3 +33,4 @@ int main(void) {
     cuda_hello_blocks<<<grid_dims, block_dims>>>();
     cudaDeviceSynchronize();
 }
+

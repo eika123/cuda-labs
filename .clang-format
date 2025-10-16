@@ -4,3 +4,5 @@ UseTab:          Never
 TabWidth:        8
 IndentWidth: 8
 PointerAlignment: Right
+
+AllowShortIfStatementsOnASingleLine: WithoutElse

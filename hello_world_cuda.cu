@@ -22,8 +22,7 @@ int main(int argc, char **argv) {
         long threads_per_block = strtol(argv[2], &endptrt, 10);
 
         // Launch the kernel on the GPU
-        // <<<blockNum, threadsPerBlock>>> specifies the execution configuration:
-        // 1 block of threads, with 1 thread per block
+        // <<<blockNum, threadsPerBlock>>> specifies the execution configuration
         cuda_hello_printf_convert<<<number_of_blocks, threads_per_block>>>();
 
         // Synchronize the device to ensure the kernel completes before the host
